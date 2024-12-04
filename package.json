@@ -1,0 +1,32 @@
+{
+  "name": "zumynext-bot",
+  "version": "1.0.0",
+  "description": "ZumyNext Telegram Bot",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "lint": "eslint .",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "echo \"No build step required\" && exit 0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "keywords": ["telegram", "bot", "zumynext"],
+  "author": "Angga",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.7.7",
+    "dotenv": "^16.4.7",
+    "mongodb": "^4.10.0",
+    "moment-timezone": "^0.5.46",
+    "telegraf": "^4.15.3",
+    "telegraf-ratelimit": "^2.0.0",
+    "winston": "^3.11.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.56.0",
+    "nodemon": "^3.0.3"
+  }
+}
