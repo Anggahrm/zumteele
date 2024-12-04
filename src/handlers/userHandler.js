@@ -1,6 +1,6 @@
 const { Markup } = require('telegraf');
 const { getUsersCollection } = require('../../db');
-const config = require('../../config');
+const { isOwner } = require('../utils/ownerCheck');
 const logger = require('../utils/logger');
 
 class UserHandler {
@@ -12,7 +12,7 @@ class UserHandler {
       const totalUsers = await usersCollection.countDocuments();
       const activeUsers = await usersCollection.countDocuments({ ai: true });
       
-      if (ctx.from.id.toString() === config.ownerId) {
+      if (isOwner(ctx.from.id)) {
         await ctx.reply(
           '👥 *User Statistics*\n\n' +
           `Total Users: ${totalUsers}\n` +
@@ -51,7 +51,7 @@ class UserHandler {
       
       if (action === 'close') {
         await ctx.deleteMessage();
-      } else if (action === 'broadcast' && ctx.from.id.toString() === config.ownerId) {
+      } else if (action === 'broadcast' && isOwner(ctx.from.id)) {
         this.waitingForBroadcast.add(ctx.from.id);
         await ctx.reply(
           '📣 Please enter your broadcast message:',
@@ -72,7 +72,7 @@ class UserHandler {
 
   static async handleBroadcast(ctx) {
     try {
-      if (ctx.from.id.toString() !== config.ownerId) {
+      if (!isOwner(ctx.from.id)) {
         await ctx.reply('⚠️ You do not have permission to broadcast messages.');
         return;
       }
