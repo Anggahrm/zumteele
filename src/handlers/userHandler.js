@@ -41,7 +41,13 @@ class UserHandler {
       }
     } catch (error) {
       logger.error('User info error:', error);
-      await ctx.reply('❌ An error occurred while fetching user information.');
+      await ctx.reply('❌ An error occurred while fetching user information.', {
+        reply_markup: Markup.keyboard([
+          ['🎵 Spotify', '🤖 AI Settings'],
+          ['📅 Schedule', '👤 User Info'],
+          ['⚙️ Settings']
+        ]).resize()
+      });
     }
   }
 
@@ -67,20 +73,39 @@ class UserHandler {
     } catch (error) {
       logger.error('User callback error:', error);
       await ctx.answerCbQuery('❌ An error occurred. Please try again.');
+      await ctx.reply('Please try again or choose another option:', {
+        reply_markup: Markup.keyboard([
+          ['🎵 Spotify', '🤖 AI Settings'],
+          ['📅 Schedule', '👤 User Info'],
+          ['⚙️ Settings']
+        ]).resize()
+      });
     }
   }
 
   static async handleBroadcast(ctx) {
     try {
       if (!isOwner(ctx.from.id)) {
-        await ctx.reply('⚠️ You do not have permission to broadcast messages.');
+        await ctx.reply('⚠️ You do not have permission to broadcast messages.', {
+          reply_markup: Markup.keyboard([
+            ['🎵 Spotify', '🤖 AI Settings'],
+            ['📅 Schedule', '👤 User Info'],
+            ['⚙️ Settings']
+          ]).resize()
+        });
         return;
       }
 
       // Handle cancel broadcast
       if (ctx.message.text === '❌ Cancel Broadcast') {
         this.waitingForBroadcast.delete(ctx.from.id);
-        await ctx.reply('Broadcast cancelled.', { reply_markup: { remove_keyboard: true } });
+        await ctx.reply('Broadcast cancelled.', {
+          reply_markup: Markup.keyboard([
+            ['🎵 Spotify', '🤖 AI Settings'],
+            ['📅 Schedule', '👤 User Info'],
+            ['⚙️ Settings']
+          ]).resize()
+        });
         return;
       }
 
@@ -97,7 +122,9 @@ class UserHandler {
       let successCount = 0;
       let failureCount = 0;
 
-      const status = await ctx.reply('📣 Broadcasting message...', { reply_markup: { remove_keyboard: true } });
+      const status = await ctx.reply('📣 Broadcasting message...', { 
+        reply_markup: { remove_keyboard: true }
+      });
 
       for (const user of users) {
         try {
@@ -127,10 +154,25 @@ class UserHandler {
         `✅ Successful: ${successCount}\n` +
         `❌ Failed: ${failureCount}`
       );
+
+      // Restore main menu keyboard
+      await ctx.reply('Choose another option:', {
+        reply_markup: Markup.keyboard([
+          ['🎵 Spotify', '🤖 AI Settings'],
+          ['📅 Schedule', '👤 User Info'],
+          ['⚙️ Settings']
+        ]).resize()
+      });
     } catch (error) {
       logger.error('Broadcast error:', error);
       this.waitingForBroadcast.delete(ctx.from.id);
-      await ctx.reply('❌ An error occurred while broadcasting the message.', { reply_markup: { remove_keyboard: true } });
+      await ctx.reply('❌ An error occurred while broadcasting the message.', {
+        reply_markup: Markup.keyboard([
+          ['🎵 Spotify', '🤖 AI Settings'],
+          ['📅 Schedule', '👤 User Info'],
+          ['⚙️ Settings']
+        ]).resize()
+      });
     }
   }
 }
