@@ -1,8 +1,10 @@
+const config = require('../config');
+
 module.exports.sendDebugMessage = async (bot, chatId, message, settingsCollection) => {
   const debugModeSetting = await settingsCollection.findOne({ setting: "debugMode" });
   const debugMode = debugModeSetting ? debugModeSetting.value : false;
 
-  if (!debugMode) return;  // Cek apakah debugMode aktif
+  if (!debugMode) return;  // Check if debugMode is active
   const maxLength = 4096;
   const messages = [];
   for (let i = 0; message.length > i; i += maxLength) {
@@ -15,10 +17,18 @@ module.exports.sendDebugMessage = async (bot, chatId, message, settingsCollectio
 
 module.exports.restrictToGroups = (settingsCollection) => {
   return async (ctx, next) => {
-    const chatId = ctx.chat.id;
+    const userId = ctx.from?.id?.toString();
+    const chatId = ctx.chat?.id;
     const groupOnlySetting = await settingsCollection.findOne({ setting: "groupOnly" });
     const groupOnly = groupOnlySetting ? groupOnlySetting.value : false;
 
+    // Allow owner to bypass group-only restriction
+    if (userId === config.ownerId) {
+      await next();
+      return;
+    }
+
+    // Check group-only mode for other users
     if (groupOnly && (ctx.chat.type !== 'group' && ctx.chat.type !== 'supergroup')) {
       await ctx.reply('Bot ini hanya dapat digunakan di grup. Bergabunglah ke grup Zumy Discussion: https://t.me/zumydc.');
       return;
@@ -35,7 +45,7 @@ module.exports.logMessages = (settingsCollection) => {
     const loggingEnabled = logsSetting ? logsSetting.value : false;
 
     if (loggingEnabled && ctx.message) {
-      const logGroupId = '-4532293862'; // Replace with your logging group ID
+      const logGroupId = config.logGroupId;
       try {
         await ctx.forwardMessage(logGroupId);
       } catch (error) {
