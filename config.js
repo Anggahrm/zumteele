@@ -4,7 +4,7 @@ module.exports = {
   // Bot Configuration
   botToken: process.env.BOT_TOKEN || '6373447466:AAG54mWfzfN-RHwJkqG7PosjCtY-0l-CRcw',
   ownerId: process.env.OWNER_ID || '6026583608',
-  apiToken: process.env.API_TOKEN || 'anggagtg',
+  apiToken: process.env.API_TOKEN || 'zumyXD',
   
   // MongoDB Configuration
   mongoDb: process.env.MONGODB_URI || 'mongodb+srv://zumydc:zumydc@zumydc.mos64tk.mongodb.net/?retryWrites=true&w=majority&appName=ZumyDC',
