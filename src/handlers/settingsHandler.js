@@ -1,12 +1,12 @@
 const { Markup } = require('telegraf');
 const { getSettingsCollection } = require('../../db');
-const config = require('../../config');
+const { isOwner } = require('../utils/ownerCheck');
 const logger = require('../utils/logger');
 
 class SettingsHandler {
   static async showSettings(ctx) {
     try {
-      if (ctx.from.id.toString() !== config.ownerId) {
+      if (!isOwner(ctx.from.id)) {
         await ctx.reply('⚠️ You do not have permission to access settings.');
         return;
       }
@@ -45,7 +45,7 @@ class SettingsHandler {
 
   static async handleCallback(ctx) {
     try {
-      if (ctx.from.id.toString() !== config.ownerId) {
+      if (!isOwner(ctx.from.id)) {
         await ctx.answerCbQuery('⚠️ You do not have permission to change settings.');
         return;
       }
