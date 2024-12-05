@@ -23,13 +23,18 @@ class ScheduleHandler {
       const schedule = this.getScheduleForDay(today);
       const message = this.formatScheduleMessage(today, schedule);
 
+      const keyboard = [
+        ['📅 Minggu', '📅 Senin', '📅 Selasa'],
+        ['📅 Rabu', '📅 Kamis', '📅 Jumat', '📅 Sabtu'],
+        ['🔙 Main Menu']
+      ];
+
       await ctx.reply(message, {
         parse_mode: 'Markdown',
-        reply_markup: Markup.keyboard([
-          ['📅 Minggu', '📅 Senin', '📅 Selasa'],
-          ['📅 Rabu', '📅 Kamis', '📅 Jumat', '📅 Sabtu'],
-          ['🔙 Main Menu']
-        ]).resize()
+        reply_markup: {
+          keyboard: keyboard,
+          resize_keyboard: true
+        }
       });
     } catch (error) {
       logger.error('Schedule handler error:', error);
@@ -76,25 +81,36 @@ class ScheduleHandler {
     return `${header}${scheduleDetails}\n\n💡 Pilih hari lain untuk melihat jadwal berbeda.`;
   }
 
-  static async handleDaySelection(ctx, selectedDay) {
+  static async handleDaySelection(ctx) {
     try {
-      const day = selectedDay.replace('📅 ', '');
-      const schedule = this.getScheduleForDay(day);
-      const message = this.formatScheduleMessage(day, schedule);
+      const selectedDay = ctx.message.text.replace('📅 ', '');
+      if (this.days.includes(selectedDay)) {
+        const schedule = this.getScheduleForDay(selectedDay);
+        const message = this.formatScheduleMessage(selectedDay, schedule);
 
-      await ctx.reply(message, {
-        parse_mode: 'Markdown',
-        reply_markup: Markup.keyboard([
-          ['📅 Minggu', '📅 Senin', '📅 Selasa'],
-          ['📅 Rabu', '📅 Kamis', '📅 Jumat', '📅 Sabtu'],
-          ['🔙 Main Menu']
-        ]).resize()
-      });
+        await ctx.reply(message, {
+          parse_mode: 'Markdown',
+          reply_markup: {
+            keyboard: [
+              ['📅 Minggu', '📅 Senin', '📅 Selasa'],
+              ['📅 Rabu', '📅 Kamis', '📅 Jumat', '📅 Sabtu'],
+              ['🔙 Main Menu']
+            ],
+            resize_keyboard: true
+          }
+        });
+      } else if (ctx.message.text === '🔙 Main Menu') {
+        await ctx.reply('Main Menu:', {
+          reply_markup: Markup.keyboard([
+            ['🎵 Spotify', '🤖 AI Settings'],
+            ['📅 Schedule', '👤 User Info'],
+            ['⚙️ Settings']
+          ]).resize()
+        });
+      }
     } catch (error) {
       logger.error('Schedule day selection error:', error);
       await ctx.reply('❌ An error occurred. Please try again.');
     }
   }
 }
-
-module.exports = ScheduleHandler;
