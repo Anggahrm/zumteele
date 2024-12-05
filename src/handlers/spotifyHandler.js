@@ -177,3 +177,5 @@ class SpotifyHandler {
     }
   }
 }
+
+module.exports = SpotifyHandler;
