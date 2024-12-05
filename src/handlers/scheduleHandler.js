@@ -20,14 +20,16 @@ class ScheduleHandler {
   static async showSchedule(ctx) {
     try {
       const today = this.days[moment().tz('Asia/Jakarta').day()];
-      const todaySchedule = this.getScheduleForDay(today);
-
-      const message = this.formatScheduleMessage(today, todaySchedule);
-      const keyboard = this.buildScheduleKeyboard(today);
+      const schedule = this.getScheduleForDay(today);
+      const message = this.formatScheduleMessage(today, schedule);
 
       await ctx.reply(message, {
         parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard(keyboard)
+        reply_markup: Markup.keyboard([
+          ['📅 Minggu', '📅 Senin', '📅 Selasa'],
+          ['📅 Rabu', '📅 Kamis', '📅 Jumat', '📅 Sabtu'],
+          ['🔙 Main Menu']
+        ]).resize()
       });
     } catch (error) {
       logger.error('Schedule handler error:', error);
@@ -59,7 +61,7 @@ class ScheduleHandler {
     const header = `📅 *Jadwal Kuliah - ${day}*\n\n`;
     
     if (schedule.length === 0) {
-      return header + '✨ Tidak ada jadwal kuliah hari ini.';
+      return header + '✨ Tidak ada jadwal kuliah hari ini.\n\n💡 Pilih hari lain untuk melihat jadwal.';
     }
 
     const scheduleDetails = schedule.map(item => {
@@ -71,50 +73,26 @@ class ScheduleHandler {
         location;
     }).join('\n\n');
 
-    return `${header}${scheduleDetails}`;
+    return `${header}${scheduleDetails}\n\n💡 Pilih hari lain untuk melihat jadwal berbeda.`;
   }
 
-  static buildScheduleKeyboard(currentDay) {
-    const keyboard = [];
-    const row1 = [];
-    const row2 = [];
-
-    this.days.forEach((day, index) => {
-      const button = Markup.button.callback(
-        day === currentDay ? `• ${day} •` : day,
-        `schedule_${day}`
-      );
-      if (index < 4) {
-        row1.push(button);
-      } else {
-        row2.push(button);
-      }
-    });
-
-    keyboard.push(row1);
-    keyboard.push(row2);
-
-    return keyboard;
-  }
-
-  static async handleCallback(ctx) {
+  static async handleDaySelection(ctx, selectedDay) {
     try {
-      const data = ctx.callbackQuery.data;
-      const day = data.replace('schedule_', '');
-      
+      const day = selectedDay.replace('📅 ', '');
       const schedule = this.getScheduleForDay(day);
       const message = this.formatScheduleMessage(day, schedule);
-      const keyboard = this.buildScheduleKeyboard(day);
 
-      await ctx.editMessageText(message, {
+      await ctx.reply(message, {
         parse_mode: 'Markdown',
-        reply_markup: Markup.inlineKeyboard(keyboard)
+        reply_markup: Markup.keyboard([
+          ['📅 Minggu', '📅 Senin', '📅 Selasa'],
+          ['📅 Rabu', '📅 Kamis', '📅 Jumat', '📅 Sabtu'],
+          ['🔙 Main Menu']
+        ]).resize()
       });
-
-      await ctx.answerCbQuery();
     } catch (error) {
-      logger.error('Schedule callback error:', error);
-      await ctx.answerCbQuery('❌ An error occurred. Please try again.');
+      logger.error('Schedule day selection error:', error);
+      await ctx.reply('❌ An error occurred. Please try again.');
     }
   }
 }
