@@ -62,6 +62,7 @@ bot.hears('❌ Cancel Broadcast', (ctx) => UserHandler.handleBroadcast(ctx));
 
 // Callback queries
 bot.action(/spotify_.*/, (ctx) => SpotifyHandler.handleCallback(ctx));
+bot.action(/download_.*/, (ctx) => SpotifyHandler.handleCallback(ctx));
 bot.action(/ai_(on|off)/, (ctx) => AIHandler.toggleAI(ctx));
 bot.action(/schedule_.*/, (ctx) => ScheduleHandler.handleDaySelection(ctx));
 bot.action(/settings_.*/, (ctx) => SettingsHandler.handleCallback(ctx));
