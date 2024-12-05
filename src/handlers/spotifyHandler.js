@@ -13,8 +13,7 @@ class SpotifyHandler {
       if (ctx.message?.text === '❌ Cancel') {
         this.waitingForInput.delete(ctx.from.id);
         await ctx.reply('Operation cancelled.', { 
-          reply_markup: { remove_keyboard: true },
-          ...Markup.keyboard([
+          reply_markup: Markup.keyboard([
             ['🎵 Spotify', '🤖 AI Settings'],
             ['📅 Schedule', '👤 User Info'],
             ['⚙️ Settings']
@@ -40,10 +39,9 @@ class SpotifyHandler {
           }
         } catch (error) {
           logger.error('Spotify search processing error:', error);
-          await ctx.telegram.editMessageText(
-            ctx.chat.id,
+          await safeEditMessage(
+            ctx,
             message.message_id,
-            null,
             '❌ An error occurred while processing your request.'
           );
           await ctx.reply('Please try again or choose another option:', {
@@ -66,9 +64,7 @@ class SpotifyHandler {
         '2. `https://open.spotify.com/track/...`',
         {
           parse_mode: 'Markdown',
-          reply_markup: Markup.keyboard([['❌ Cancel']])
-            .oneTime()
-            .resize()
+          reply_markup: Markup.keyboard([['❌ Cancel']]).resize()
         }
       );
     } catch (error) {
@@ -95,18 +91,19 @@ class SpotifyHandler {
       }
 
       const results = response.data.result.data.slice(0, 5);
-      const keyboard = results.map((song, index) => ([
-        Markup.button.callback(
-          `${index + 1}. ${song.title.substring(0, 30)}${song.title.length > 30 ? '...' : ''}`,
-          `spotify_url_${song.url}`
-        )
-      ]));
+      const keyboard = results.map((song, index) => ([{
+        text: `${index + 1}. ${song.title.substring(0, 30)}${song.title.length > 30 ? '...' : ''}`,
+        callback_data: `spotify_url_${song.url}`
+      }]));
 
       await safeEditMessage(
         ctx,
         messageId,
         '🎵 Select a song:',
-        { reply_markup: Markup.inlineKeyboard(keyboard) }
+        { 
+          reply_markup: { inline_keyboard: keyboard },
+          parse_mode: 'Markdown'
+        }
       );
 
       await ctx.reply('Choose another option:', {
@@ -140,9 +137,12 @@ class SpotifyHandler {
         `🎵 *${title}*\n⏱ Duration: ${duration}`,
         { 
           parse_mode: 'Markdown',
-          reply_markup: Markup.inlineKeyboard([
-            [Markup.button.callback('Download', `spotify_download_${audioUrl}`)]
-          ])
+          reply_markup: {
+            inline_keyboard: [[{
+              text: 'Download',
+              callback_data: `spotify_download_${audioUrl}`
+            }]]
+          }
         }
       );
     } catch (error) {
@@ -177,5 +177,3 @@ class SpotifyHandler {
     }
   }
 }
-
-module.exports = SpotifyHandler;
