@@ -50,6 +50,12 @@ bot.hears('📅 Schedule', (ctx) => ScheduleHandler.showSchedule(ctx));
 bot.hears('👤 User Info', (ctx) => UserHandler.showUserInfo(ctx));
 bot.hears('⚙️ Settings', (ctx) => SettingsHandler.showSettings(ctx));
 
+// Handle schedule day selection
+bot.hears(/^📅 (Minggu|Senin|Selasa|Rabu|Kamis|Jumat|Sabtu)$/, (ctx) => ScheduleHandler.handleDaySelection(ctx));
+bot.hears('🔙 Main Menu', (ctx) => {
+  ctx.reply('Main Menu:', mainMenuKeyboard);
+});
+
 // Handle cancel buttons
 bot.hears('❌ Cancel', (ctx) => SpotifyHandler.handleSpotifySearch(ctx));
 bot.hears('❌ Cancel Broadcast', (ctx) => UserHandler.handleBroadcast(ctx));
@@ -57,7 +63,7 @@ bot.hears('❌ Cancel Broadcast', (ctx) => UserHandler.handleBroadcast(ctx));
 // Callback queries
 bot.action(/spotify_.*/, (ctx) => SpotifyHandler.handleCallback(ctx));
 bot.action(/ai_(on|off)/, (ctx) => AIHandler.toggleAI(ctx));
-bot.action(/schedule_.*/, (ctx) => ScheduleHandler.handleCallback(ctx));
+bot.action(/schedule_.*/, (ctx) => ScheduleHandler.handleDaySelection(ctx));
 bot.action(/settings_.*/, (ctx) => SettingsHandler.handleCallback(ctx));
 bot.action(/user_.*/, (ctx) => UserHandler.handleCallback(ctx));
 
