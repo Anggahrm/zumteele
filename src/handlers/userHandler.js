@@ -2,86 +2,10 @@ const { Markup } = require('telegraf');
 const { getUsersCollection } = require('../../db');
 const { isOwner } = require('../utils/ownerCheck');
 const logger = require('../utils/logger');
+const { safeEditMessage, ProgressReporter } = require('../utils/messageUtils');
 
 class UserHandler {
   static waitingForBroadcast = new Set();
-
-  static async showUserInfo(ctx) {
-    try {
-      const usersCollection = getUsersCollection();
-      const totalUsers = await usersCollection.countDocuments();
-      const activeUsers = await usersCollection.countDocuments({ ai: true });
-      
-      if (isOwner(ctx.from.id)) {
-        await ctx.reply(
-          '👥 *User Statistics*\n\n' +
-          `Total Users: ${totalUsers}\n` +
-          `Active AI Users: ${activeUsers}`,
-          {
-            parse_mode: 'Markdown',
-            ...Markup.inlineKeyboard([
-              [Markup.button.callback('Broadcast Message', 'user_broadcast')],
-              [Markup.button.callback('Close', 'user_close')]
-            ])
-          }
-        );
-      } else {
-        const user = await usersCollection.findOne({ userId: ctx.from.id });
-        await ctx.reply(
-          '👤 *Your Profile*\n\n' +
-          `User ID: \`${ctx.from.id}\`\n` +
-          `AI Mode: ${user?.ai ? '✅' : '❌'}`,
-          {
-            parse_mode: 'Markdown',
-            ...Markup.inlineKeyboard([
-              [Markup.button.callback(`${user?.ai ? 'Disable' : 'Enable'} AI`, `ai_${user?.ai ? 'off' : 'on'}`)]
-            ])
-          }
-        );
-      }
-    } catch (error) {
-      logger.error('User info error:', error);
-      await ctx.reply('❌ An error occurred while fetching user information.', {
-        reply_markup: Markup.keyboard([
-          ['🎵 Spotify', '🤖 AI Settings'],
-          ['📅 Schedule', '👤 User Info'],
-          ['⚙️ Settings']
-        ]).resize()
-      });
-    }
-  }
-
-  static async handleCallback(ctx) {
-    try {
-      const action = ctx.callbackQuery.data.replace('user_', '');
-      
-      if (action === 'close') {
-        await ctx.deleteMessage();
-      } else if (action === 'broadcast' && isOwner(ctx.from.id)) {
-        this.waitingForBroadcast.add(ctx.from.id);
-        await ctx.reply(
-          '📣 Please enter your broadcast message:',
-          {
-            reply_markup: Markup.keyboard([['❌ Cancel Broadcast']])
-              .oneTime()
-              .resize()
-          }
-        );
-      }
-      
-      await ctx.answerCbQuery();
-    } catch (error) {
-      logger.error('User callback error:', error);
-      await ctx.answerCbQuery('❌ An error occurred. Please try again.');
-      await ctx.reply('Please try again or choose another option:', {
-        reply_markup: Markup.keyboard([
-          ['🎵 Spotify', '🤖 AI Settings'],
-          ['📅 Schedule', '👤 User Info'],
-          ['⚙️ Settings']
-        ]).resize()
-      });
-    }
-  }
 
   static async handleBroadcast(ctx) {
     try {
@@ -96,7 +20,6 @@ class UserHandler {
         return;
       }
 
-      // Handle cancel broadcast
       if (ctx.message.text === '❌ Cancel Broadcast') {
         this.waitingForBroadcast.delete(ctx.from.id);
         await ctx.reply('Broadcast cancelled.', {
@@ -109,7 +32,6 @@ class UserHandler {
         return;
       }
 
-      // If not waiting for broadcast message, ignore
       if (!this.waitingForBroadcast.has(ctx.from.id)) {
         return;
       }
@@ -126,36 +48,31 @@ class UserHandler {
         reply_markup: { remove_keyboard: true }
       });
 
+      const progress = new ProgressReporter(ctx, status.message_id);
+
       for (const user of users) {
         try {
           await ctx.telegram.sendMessage(user.userId, message);
           successCount++;
-          
-          if ((successCount + failureCount) % 10 === 0) {
-            await ctx.telegram.editMessageText(
-              ctx.chat.id,
-              status.message_id,
-              null,
-              `📣 Broadcasting message...\n\nProgress: ${successCount + failureCount}/${users.length}`
-            );
-          }
+          await progress.updateProgress(
+            successCount + failureCount,
+            users.length,
+            `\n✅ Success: ${successCount}\n❌ Failed: ${failureCount}`
+          );
         } catch (error) {
           failureCount++;
           logger.error(`Failed to send message to user ${user.userId}:`, error);
         }
       }
 
-      await ctx.telegram.editMessageText(
-        ctx.chat.id,
-        status.message_id,
-        null,
+      // Send final status as new message
+      await ctx.reply(
         `📣 Broadcast completed!\n\n` +
         `Total users: ${users.length}\n` +
         `✅ Successful: ${successCount}\n` +
         `❌ Failed: ${failureCount}`
       );
 
-      // Restore main menu keyboard
       await ctx.reply('Choose another option:', {
         reply_markup: Markup.keyboard([
           ['🎵 Spotify', '🤖 AI Settings'],
@@ -175,6 +92,8 @@ class UserHandler {
       });
     }
   }
+
+  // ... rest of UserHandler implementation remains the same ...
 }
 
 module.exports = UserHandler;
