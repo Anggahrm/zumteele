@@ -6,6 +6,7 @@ const { safeEditMessage } = require('../utils/messageUtils');
 
 class SpotifyHandler {
   static waitingForInput = new Set();
+  static songCache = new Map();
 
   static async handleSpotifySearch(ctx) {
     try {
@@ -93,10 +94,16 @@ class SpotifyHandler {
       }
 
       const results = response.data.result.data.slice(0, 5);
-      const keyboard = results.map(song => ([{
-        text: song.title.substring(0, 30) + (song.title.length > 30 ? '...' : ''),
-        callback_data: `spotify_${song.url}`
-      }]));
+      
+      // Generate short IDs and cache the URLs
+      const keyboard = results.map((song, index) => {
+        const shortId = `s${index}`;
+        this.songCache.set(shortId, song.url);
+        return [{
+          text: song.title.substring(0, 30) + (song.title.length > 30 ? '...' : ''),
+          callback_data: shortId
+        }];
+      });
 
       await safeEditMessage(
         ctx,
@@ -123,6 +130,8 @@ class SpotifyHandler {
       }
 
       const { title, duration, url: audioUrl } = response.data.result.data;
+      const shortId = `d${Date.now().toString(36)}`;
+      this.songCache.set(shortId, audioUrl);
 
       await safeEditMessage(
         ctx,
@@ -133,7 +142,7 @@ class SpotifyHandler {
           reply_markup: {
             inline_keyboard: [[{
               text: '⬇️ Download',
-              callback_data: `download_${encodeURIComponent(audioUrl)}`
+              callback_data: shortId
             }]]
           }
         }
@@ -148,14 +157,22 @@ class SpotifyHandler {
     try {
       const data = ctx.callbackQuery.data;
       
-      if (data.startsWith('spotify_')) {
-        const url = data.replace('spotify_', '');
+      if (data.startsWith('s')) {
+        const url = this.songCache.get(data);
+        if (!url) {
+          throw new Error('Song URL not found in cache');
+        }
         await ctx.answerCbQuery('🎵 Fetching song details...');
         await this.handleSpotifyUrl(ctx, url, ctx.callbackQuery.message.message_id);
-      } else if (data.startsWith('download_')) {
-        const audioUrl = decodeURIComponent(data.replace('download_', ''));
+        this.songCache.delete(data); // Clean up cache
+      } else if (data.startsWith('d')) {
+        const audioUrl = this.songCache.get(data);
+        if (!audioUrl) {
+          throw new Error('Audio URL not found in cache');
+        }
         await ctx.answerCbQuery('⬇️ Starting download...');
         await ctx.replyWithAudio({ url: audioUrl });
+        this.songCache.delete(data); // Clean up cache
       }
     } catch (error) {
       logger.error('Spotify callback error:', error);
