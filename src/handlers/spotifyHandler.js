@@ -44,14 +44,16 @@ class SpotifyHandler {
             message.message_id,
             '❌ An error occurred while processing your request.'
           );
-          await ctx.reply('Please try again or choose another option:', {
-            reply_markup: Markup.keyboard([
-              ['🎵 Spotify', '🤖 AI Settings'],
-              ['📅 Schedule', '👤 User Info'],
-              ['⚙️ Settings']
-            ]).resize()
-          });
         }
+        
+        // Always show the main menu after processing
+        await ctx.reply('Choose an option:', {
+          reply_markup: Markup.keyboard([
+            ['🎵 Spotify', '🤖 AI Settings'],
+            ['📅 Schedule', '👤 User Info'],
+            ['⚙️ Settings']
+          ]).resize()
+        });
         return;
       }
 
@@ -91,32 +93,19 @@ class SpotifyHandler {
       }
 
       const results = response.data.result.data.slice(0, 5);
-      const keyboard = results.map((song, index) => {
-        // Extract track ID from Spotify URL
-        const trackId = song.url.split('/').pop().split('?')[0];
-        return [{
-          text: `${index + 1}. ${song.title.substring(0, 30)}${song.title.length > 30 ? '...' : ''}`,
-          callback_data: `s_${trackId}` // Shortened callback data
-        }];
-      });
+      const keyboard = results.map(song => ([{
+        text: song.title.substring(0, 30) + (song.title.length > 30 ? '...' : ''),
+        callback_data: `spotify_${song.url}`
+      }]));
 
       await safeEditMessage(
         ctx,
         messageId,
         '🎵 Select a song:',
         { 
-          reply_markup: { inline_keyboard: keyboard },
-          parse_mode: 'Markdown'
+          reply_markup: { inline_keyboard: keyboard }
         }
       );
-
-      await ctx.reply('Choose another option:', {
-        reply_markup: Markup.keyboard([
-          ['🎵 Spotify', '🤖 AI Settings'],
-          ['📅 Schedule', '👤 User Info'],
-          ['⚙️ Settings']
-        ]).resize()
-      });
     } catch (error) {
       logger.error('Spotify query error:', error);
       throw error;
@@ -126,7 +115,7 @@ class SpotifyHandler {
   static async handleSpotifyUrl(ctx, url, messageId) {
     try {
       const response = await axios.get(
-        `${config.spotifyApiUrl}/download/spotify?url=${url}&apikey=${config.apiToken}`
+        `${config.spotifyApiUrl}/download/spotify?url=${encodeURIComponent(url)}&apikey=${config.apiToken}`
       );
 
       if (!response.data?.result?.data) {
@@ -134,10 +123,7 @@ class SpotifyHandler {
       }
 
       const { title, duration, url: audioUrl } = response.data.result.data;
-      
-      // Create a short hash for the audio URL
-      const urlHash = Buffer.from(audioUrl).toString('base64').substring(0, 32);
-      
+
       await safeEditMessage(
         ctx,
         messageId,
@@ -146,8 +132,8 @@ class SpotifyHandler {
           parse_mode: 'Markdown',
           reply_markup: {
             inline_keyboard: [[{
-              text: 'Download',
-              callback_data: `d_${urlHash}` // Shortened callback data
+              text: '⬇️ Download',
+              callback_data: `download_${encodeURIComponent(audioUrl)}`
             }]]
           }
         }
@@ -162,39 +148,18 @@ class SpotifyHandler {
     try {
       const data = ctx.callbackQuery.data;
       
-      if (data.startsWith('s_')) {
-        // Handle song selection
-        const trackId = data.slice(2);
-        const url = `https://open.spotify.com/track/${trackId}`;
-        await ctx.answerCbQuery('Fetching song details...');
+      if (data.startsWith('spotify_')) {
+        const url = data.replace('spotify_', '');
+        await ctx.answerCbQuery('🎵 Fetching song details...');
         await this.handleSpotifyUrl(ctx, url, ctx.callbackQuery.message.message_id);
-      } else if (data.startsWith('d_')) {
-        // Handle download
-        const urlHash = data.slice(2);
-        await ctx.answerCbQuery('Starting download...');
-        
-        // Retrieve the full URL from the API again
-        const trackId = ctx.callbackQuery.message.reply_markup.inline_keyboard[0][0].callback_data.slice(2);
-        const response = await axios.get(
-          `${config.spotifyApiUrl}/download/spotify?url=https://open.spotify.com/track/${trackId}&apikey=${config.apiToken}`
-        );
-        
-        if (response.data?.result?.data?.url) {
-          await ctx.replyWithAudio({ url: response.data.result.data.url });
-        } else {
-          throw new Error('Failed to get download URL');
-        }
+      } else if (data.startsWith('download_')) {
+        const audioUrl = decodeURIComponent(data.replace('download_', ''));
+        await ctx.answerCbQuery('⬇️ Starting download...');
+        await ctx.replyWithAudio({ url: audioUrl });
       }
     } catch (error) {
       logger.error('Spotify callback error:', error);
       await ctx.answerCbQuery('❌ An error occurred. Please try again.');
-      await ctx.reply('Please try again or choose another option:', {
-        reply_markup: Markup.keyboard([
-          ['🎵 Spotify', '🤖 AI Settings'],
-          ['📅 Schedule', '👤 User Info'],
-          ['⚙️ Settings']
-        ]).resize()
-      });
     }
   }
 }
