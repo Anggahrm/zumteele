@@ -91,10 +91,14 @@ class SpotifyHandler {
       }
 
       const results = response.data.result.data.slice(0, 5);
-      const keyboard = results.map((song, index) => ([{
-        text: `${index + 1}. ${song.title.substring(0, 30)}${song.title.length > 30 ? '...' : ''}`,
-        callback_data: `spotify_url_${song.url}`
-      }]));
+      const keyboard = results.map((song, index) => {
+        // Extract track ID from Spotify URL
+        const trackId = song.url.split('/').pop().split('?')[0];
+        return [{
+          text: `${index + 1}. ${song.title.substring(0, 30)}${song.title.length > 30 ? '...' : ''}`,
+          callback_data: `s_${trackId}` // Shortened callback data
+        }];
+      });
 
       await safeEditMessage(
         ctx,
@@ -131,6 +135,9 @@ class SpotifyHandler {
 
       const { title, duration, url: audioUrl } = response.data.result.data;
       
+      // Create a short hash for the audio URL
+      const urlHash = Buffer.from(audioUrl).toString('base64').substring(0, 32);
+      
       await safeEditMessage(
         ctx,
         messageId,
@@ -140,7 +147,7 @@ class SpotifyHandler {
           reply_markup: {
             inline_keyboard: [[{
               text: 'Download',
-              callback_data: `spotify_download_${audioUrl}`
+              callback_data: `d_${urlHash}` // Shortened callback data
             }]]
           }
         }
@@ -155,14 +162,28 @@ class SpotifyHandler {
     try {
       const data = ctx.callbackQuery.data;
       
-      if (data.startsWith('spotify_url_')) {
-        const url = data.replace('spotify_url_', '');
+      if (data.startsWith('s_')) {
+        // Handle song selection
+        const trackId = data.slice(2);
+        const url = `https://open.spotify.com/track/${trackId}`;
         await ctx.answerCbQuery('Fetching song details...');
         await this.handleSpotifyUrl(ctx, url, ctx.callbackQuery.message.message_id);
-      } else if (data.startsWith('spotify_download_')) {
-        const url = data.replace('spotify_download_', '');
+      } else if (data.startsWith('d_')) {
+        // Handle download
+        const urlHash = data.slice(2);
         await ctx.answerCbQuery('Starting download...');
-        await ctx.replyWithAudio({ url });
+        
+        // Retrieve the full URL from the API again
+        const trackId = ctx.callbackQuery.message.reply_markup.inline_keyboard[0][0].callback_data.slice(2);
+        const response = await axios.get(
+          `${config.spotifyApiUrl}/download/spotify?url=https://open.spotify.com/track/${trackId}&apikey=${config.apiToken}`
+        );
+        
+        if (response.data?.result?.data?.url) {
+          await ctx.replyWithAudio({ url: response.data.result.data.url });
+        } else {
+          throw new Error('Failed to get download URL');
+        }
       }
     } catch (error) {
       logger.error('Spotify callback error:', error);
