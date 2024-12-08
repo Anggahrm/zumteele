@@ -6,6 +6,7 @@ const { connectToDatabase } = require('./db');
 const config = require('./config');
 const logger = require('./src/utils/logger');
 const rateLimit = require('./src/utils/rateLimit');
+const keyboardManager = require('./src/utils/keyboardManager');
 
 // Import handlers
 const SpotifyHandler = require('./src/handlers/spotifyHandler');
@@ -14,9 +15,6 @@ const ScheduleHandler = require('./src/handlers/scheduleHandler');
 const SettingsHandler = require('./src/handlers/settingsHandler');
 const UserHandler = require('./src/handlers/userHandler');
 const MessageHandler = require('./src/handlers/messageHandler');
-
-// Import keyboards
-const { mainMenuKeyboard } = require('./src/keyboards/mainMenu');
 
 // Import middleware
 const { restrictToGroups, logMessages } = require('./features/middleware');
@@ -37,10 +35,29 @@ bot.use((ctx, next) => restrictToGroups(settingsCollection)(ctx, next));
 
 // Start command
 bot.command('start', async (ctx) => {
+  const chatType = ctx.chat.type;
+  const keyboard = keyboardManager.getMainMenuKeyboard(chatType);
+  
   await ctx.reply(
     `Welcome ${ctx.from.first_name}! 👋\n\nI'm ZumyNext, your personal assistant bot. Choose an option from the menu below:`,
-    mainMenuKeyboard
+    keyboard
   );
+});
+
+// Handle menu callbacks for group chats
+bot.action(/menu_(.+)/, async (ctx) => {
+  const action = ctx.match[1];
+  const handler = {
+    'Spotify': () => SpotifyHandler.handleSpotifySearch(ctx),
+    'AI_Settings': () => AIHandler.toggleAI(ctx),
+    'Schedule': () => ScheduleHandler.showSchedule(ctx),
+    'User_Info': () => UserHandler.showUserInfo(ctx),
+    'Settings': () => SettingsHandler.showSettings(ctx)
+  }[action];
+
+  if (handler) {
+    await handler();
+  }
 });
 
 // Main menu handlers
@@ -53,12 +70,13 @@ bot.hears('⚙️ Settings', (ctx) => SettingsHandler.showSettings(ctx));
 // Handle schedule day selection
 bot.hears(/^📅 (Minggu|Senin|Selasa|Rabu|Kamis|Jumat|Sabtu)$/, (ctx) => ScheduleHandler.handleDaySelection(ctx));
 bot.hears('🔙 Main Menu', (ctx) => {
-  ctx.reply('Main Menu:', mainMenuKeyboard);
+  const keyboard = keyboardManager.getMainMenuKeyboard(ctx.chat.type);
+  ctx.reply('Main Menu:', keyboard);
 });
 
 // Handle cancel buttons
 bot.hears('❌ Cancel', (ctx) => SpotifyHandler.handleSpotifySearch(ctx));
-bot.hears('❌ Cancel Broadcast', (ctx) => UserHandler.handleBroadcast(ctx));
+bot.action('spotify_cancel', (ctx) => SpotifyHandler.handleSpotifySearch(ctx));
 
 // Callback queries
 bot.action(/spotify_.*/, (ctx) => SpotifyHandler.handleCallback(ctx));
