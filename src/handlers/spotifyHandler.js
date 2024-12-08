@@ -3,46 +3,50 @@ const axios = require('axios');
 const config = require('../../config');
 const logger = require('../utils/logger');
 const { safeEditMessage } = require('../utils/messageUtils');
+const keyboardManager = require('../utils/keyboardManager');
 
 class SpotifyHandler {
-  static waitingForInput = new Set();
+  static waitingForInput = new Map();
 
   static async handleSpotifySearch(ctx) {
     try {
-      // Initial spotify button click or cancel
-      if (!this.waitingForInput.has(ctx.from.id)) {
-        this.waitingForInput.add(ctx.from.id);
-        return await ctx.reply(
-          '🎵 *Spotify Search*\n\nPlease enter a song title or Spotify URL:\n\n' +
-          'Examples:\n' +
-          '1. `payung teduh`\n' +
-          '2. `https://open.spotify.com/track/...`',
-          {
-            parse_mode: 'Markdown',
-            reply_markup: {
-              keyboard: [['❌ Cancel']],
-              resize_keyboard: true,
-              one_time_keyboard: true
-            }
-          }
-        );
+      const userId = ctx.from.id;
+      const chatType = ctx.chat.type;
+
+      // Handle cancel action
+      if (ctx.message?.text === '❌ Cancel' || (ctx.callbackQuery?.data === 'spotify_cancel')) {
+        this.waitingForInput.delete(userId);
+        await this.handleCancel(ctx);
+        return;
       }
 
-      // Handle cancel
-      if (ctx.message?.text === '❌ Cancel') {
-        this.waitingForInput.delete(ctx.from.id);
-        return await ctx.reply('Operation cancelled.', { 
-          reply_markup: Markup.keyboard([
-            ['🎵 Spotify', '🤖 AI Settings'],
-            ['📅 Schedule', '👤 User Info'],
-            ['⚙️ Settings']
-          ]).resize()
-        });
+      // Initial spotify button click
+      if (!this.waitingForInput.has(userId)) {
+        this.waitingForInput.set(userId, true);
+        const message = '🎵 *Spotify Search*\n\nPlease enter a song title or Spotify URL:\n\n' +
+                       'Examples:\n' +
+                       '1. `payung teduh`\n' +
+                       '2. `https://open.spotify.com/track/...`';
+
+        const keyboard = keyboardManager.getCancelButton(chatType, 'spotify');
+        
+        if (ctx.callbackQuery) {
+          await ctx.editMessageText(message, {
+            parse_mode: 'Markdown',
+            ...keyboard
+          });
+        } else {
+          await ctx.reply(message, {
+            parse_mode: 'Markdown',
+            ...keyboard
+          });
+        }
+        return;
       }
 
       // Process search query
       const query = ctx.message.text;
-      this.waitingForInput.delete(ctx.from.id);
+      this.waitingForInput.delete(userId);
       
       const message = await ctx.reply('🔍 Searching...', { 
         reply_markup: { remove_keyboard: true }
@@ -62,25 +66,12 @@ class SpotifyHandler {
           '❌ An error occurred while processing your request.'
         );
         
-        // Show main menu only on error
-        await ctx.reply('Please try again:', {
-          reply_markup: Markup.keyboard([
-            ['🎵 Spotify', '🤖 AI Settings'],
-            ['📅 Schedule', '👤 User Info'],
-            ['⚙️ Settings']
-          ]).resize()
-        });
+        await this.showMainMenu(ctx);
       }
     } catch (error) {
       logger.error('Spotify handler error:', error);
       this.waitingForInput.delete(ctx.from.id);
-      await ctx.reply('❌ An error occurred. Please try again.', {
-        reply_markup: Markup.keyboard([
-          ['🎵 Spotify', '🤖 AI Settings'],
-          ['📅 Schedule', '👤 User Info'],
-          ['⚙️ Settings']
-        ]).resize()
-      });
+      await this.showMainMenu(ctx);
     }
   }
 
@@ -110,14 +101,7 @@ class SpotifyHandler {
         }
       );
 
-      // Show main menu after displaying search results
-      await ctx.reply('Main Menu:', {
-        reply_markup: Markup.keyboard([
-          ['🎵 Spotify', '🤖 AI Settings'],
-          ['📅 Schedule', '👤 User Info'],
-          ['⚙️ Settings']
-        ]).resize()
-      });
+      await this.showMainMenu(ctx);
     } catch (error) {
       logger.error('Spotify query error:', error);
       throw error;
@@ -141,14 +125,7 @@ class SpotifyHandler {
       await ctx.replyWithAudio({ url: audioUrl }, { title });
       await ctx.deleteMessage(waitMessage.message_id);
 
-      // Show main menu after successful download
-      await ctx.reply('Main Menu:', {
-        reply_markup: Markup.keyboard([
-          ['🎵 Spotify', '🤖 AI Settings'],
-          ['📅 Schedule', '👤 User Info'],
-          ['⚙️ Settings']
-        ]).resize()
-      });
+      await this.showMainMenu(ctx);
     } catch (error) {
       logger.error('Spotify URL error:', error);
       throw error;
@@ -159,7 +136,9 @@ class SpotifyHandler {
     try {
       const data = ctx.callbackQuery.data;
       
-      if (data.startsWith('spotify_')) {
+      if (data === 'spotify_cancel') {
+        await this.handleCancel(ctx);
+      } else if (data.startsWith('spotify_')) {
         const url = data.replace('spotify_', '');
         await ctx.answerCbQuery('⬇️ Starting download...');
         await this.handleSpotifyUrl(ctx, url);
@@ -167,7 +146,24 @@ class SpotifyHandler {
     } catch (error) {
       logger.error('Spotify callback error:', error);
       await ctx.answerCbQuery('❌ An error occurred. Please try again.');
+      await this.showMainMenu(ctx);
     }
+  }
+
+  static async handleCancel(ctx) {
+    const chatType = ctx.chat.type;
+    if (ctx.callbackQuery) {
+      await ctx.editMessageText('Operation cancelled.');
+    } else {
+      await ctx.reply('Operation cancelled.');
+    }
+    await this.showMainMenu(ctx);
+  }
+
+  static async showMainMenu(ctx) {
+    const chatType = ctx.chat.type;
+    const keyboard = keyboardManager.getMainMenuKeyboard(chatType);
+    await ctx.reply('Choose an option:', keyboard);
   }
 }
 
