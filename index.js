@@ -7,6 +7,7 @@ const config = require('./config');
 const logger = require('./src/utils/logger');
 const rateLimit = require('./src/utils/rateLimit');
 const keyboardManager = require('./src/utils/keyboardManager');
+const { checkBotPermissions } = require('./src/utils/messageUtils');
 
 // Import handlers
 const SpotifyHandler = require('./src/handlers/spotifyHandler');
@@ -28,7 +29,28 @@ let settingsCollection;
   settingsCollection = db.collection('settings');
 })();
 
-// Middleware
+// Error handling middleware
+bot.catch((err, ctx) => {
+  logger.error(`Error for ${ctx.updateType}:`, err);
+  if (err.description?.includes('not enough rights')) {
+    logger.warn(`Bot lacks required permissions in chat ${ctx.chat.id}`);
+  }
+});
+
+// Permission check middleware
+bot.use(async (ctx, next) => {
+  try {
+    if (!await checkBotPermissions(ctx)) {
+      logger.warn(`Bot lacks required permissions in chat ${ctx.chat.id}`);
+      return;
+    }
+    return next();
+  } catch (error) {
+    logger.error('Permission check middleware error:', error);
+  }
+});
+
+// Other middleware
 bot.use(rateLimit);
 bot.use((ctx, next) => logMessages(settingsCollection)(ctx, next));
 bot.use((ctx, next) => restrictToGroups(settingsCollection)(ctx, next));
