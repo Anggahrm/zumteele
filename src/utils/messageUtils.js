@@ -9,6 +9,13 @@ const logger = require('./logger');
  */
 async function safeEditMessage(ctx, messageId, text, extra = {}) {
   try {
+    // Check bot permissions before attempting to edit
+    const chatMember = await ctx.getChatMember(ctx.botInfo.id);
+    if (!chatMember || !chatMember.can_send_messages) {
+      logger.warn(`Bot lacks permission to send messages in chat ${ctx.chat.id}`);
+      return;
+    }
+
     await ctx.telegram.editMessageText(
       ctx.chat.id,
       messageId,
@@ -17,17 +24,19 @@ async function safeEditMessage(ctx, messageId, text, extra = {}) {
       extra
     );
   } catch (error) {
-    if (error.description === "Bad Request: message can't be edited") {
-      // If edit fails, send as new message
-      await ctx.reply(text, extra);
+    if (error.description?.includes('message can\'t be edited')) {
       try {
-        // Try to delete the original message
-        await ctx.telegram.deleteMessage(ctx.chat.id, messageId);
-      } catch (deleteError) {
-        logger.warn('Failed to delete original message:', deleteError);
+        await ctx.reply(text, extra);
+        try {
+          await ctx.telegram.deleteMessage(ctx.chat.id, messageId);
+        } catch (deleteError) {
+          logger.warn('Failed to delete original message:', deleteError);
+        }
+      } catch (sendError) {
+        logger.error('Failed to send fallback message:', sendError);
       }
     } else {
-      throw error;
+      logger.error('Message edit error:', error);
     }
   }
 }
@@ -43,17 +52,37 @@ class ProgressReporter {
   }
 
   async updateProgress(current, total, extraInfo = '') {
-    const now = Date.now();
-    // Update at most every 2 seconds
-    if (now - this.lastUpdate >= 2000) {
-      const progressText = `Progress: ${current}/${total}${extraInfo}`;
-      await safeEditMessage(this.ctx, this.messageId, progressText);
-      this.lastUpdate = now;
+    try {
+      const now = Date.now();
+      // Update at most every 2 seconds
+      if (now - this.lastUpdate >= 2000) {
+        const progressText = `Progress: ${current}/${total}${extraInfo}`;
+        await safeEditMessage(this.ctx, this.messageId, progressText);
+        this.lastUpdate = now;
+      }
+    } catch (error) {
+      logger.error('Progress update error:', error);
     }
+  }
+}
+
+/**
+ * Check if bot has required permissions in a chat
+ * @param {Object} ctx - Telegram context
+ * @returns {Promise<boolean>} - Whether bot has required permissions
+ */
+async function checkBotPermissions(ctx) {
+  try {
+    const chatMember = await ctx.getChatMember(ctx.botInfo.id);
+    return chatMember && chatMember.can_send_messages;
+  } catch (error) {
+    logger.error('Permission check error:', error);
+    return false;
   }
 }
 
 module.exports = {
   safeEditMessage,
-  ProgressReporter
+  ProgressReporter,
+  checkBotPermissions
 };
