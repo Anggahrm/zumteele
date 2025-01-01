@@ -9,11 +9,13 @@ const logger = require('./logger');
  */
 async function safeEditMessage(ctx, messageId, text, extra = {}) {
   try {
-    // Check bot permissions before attempting to edit
-    const chatMember = await ctx.getChatMember(ctx.botInfo.id);
-    if (!chatMember || !chatMember.can_send_messages) {
-      logger.warn(`Bot lacks permission to send messages in chat ${ctx.chat.id}`);
-      return;
+    // Only check permissions in groups/supergroups
+    if (ctx.chat.type === 'group' || ctx.chat.type === 'supergroup') {
+      const chatMember = await ctx.getChatMember(ctx.botInfo.id);
+      if (!chatMember || !chatMember.can_send_messages) {
+        logger.warn(`Bot lacks permission to send messages in group ${ctx.chat.id}`);
+        return;
+      }
     }
 
     await ctx.telegram.editMessageText(
@@ -73,6 +75,11 @@ class ProgressReporter {
  */
 async function checkBotPermissions(ctx) {
   try {
+    // Only check permissions for groups/supergroups
+    if (ctx.chat.type === 'private') {
+      return true;
+    }
+    
     const chatMember = await ctx.getChatMember(ctx.botInfo.id);
     return chatMember && chatMember.can_send_messages;
   } catch (error) {
