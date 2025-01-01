@@ -5,16 +5,17 @@ const limitConfig = {
   limit: 1,
   onLimitExceeded: async (ctx) => {
     try {
-      // Check if bot has permission to send messages
-      const chatMember = await ctx.getChatMember(ctx.botInfo.id);
-      if (!chatMember || !chatMember.can_send_messages) {
-        logger.warn(`Bot lacks permission to send messages in chat ${ctx.chat.id}`);
-        return;
+      // Only check permissions for groups/supergroups
+      if (ctx.chat.type !== 'private') {
+        const chatMember = await ctx.getChatMember(ctx.botInfo.id);
+        if (!chatMember || !chatMember.can_send_messages) {
+          logger.warn(`Bot lacks permission to send messages in group ${ctx.chat.id}`);
+          return;
+        }
       }
       
       await ctx.reply('Please wait before sending another command.');
     } catch (error) {
-      // Log the error but don't crash the bot
       logger.error('Rate limit handler error:', error);
     }
   }
